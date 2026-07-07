@@ -1,0 +1,70 @@
+name: Package Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Packages to build (e.g. luci-app-passwall, space-separated)'
+        required: true
+        type: string
+        default: 'luci-app-passwall'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+
+    - name: Download latest SDK
+      run: |
+        RELEASE=$(curl -s https://api.github.com/repos/qukefu/Actions-OpenWrt/releases/latest \
+          | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+        SDK_URL="https://github.com/qukefu/Actions-OpenWrt/releases/download/${RELEASE}/openwrt-sdk-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.xz"
+        echo "SDK_URL=$SDK_URL"
+        mkdir -p /workdir && cd /workdir
+        wget -q "$SDK_URL" -O sdk.tar.xz || {
+          echo "SDK not found in release, check if CONFIG_SDK=y is set"
+          exit 1
+        }
+        tar -xf sdk.tar.xz
+        mv openwrt-sdk-* sdk
+        echo "WORKDIR=$(pwd)/sdk" >> $GITHUB_ENV
+
+    - name: Setup package source
+      working-directory: ${{ env.WORKDIR }}
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+        make defconfig
+
+    - name: Copy custom packages from repo
+      run: |
+        [ -d package ] && cp -r package/* ${{ env.WORKDIR }}/package/ 2>/dev/null || true
+        # update package index
+        cd ${{ env.WORKDIR }}
+        make package/index 2>/dev/null || true
+
+    - name: Build packages
+      working-directory: ${{ env.WORKDIR }}
+      run: |
+        for pkg in ${{ inputs.packages }}; do
+          echo "=== Building $pkg ==="
+          make package/$pkg/compile -j$(nproc) V=s || make package/$pkg/compile -j1 V=s
+          echo "PACKAGE_DONE=$pkg" >> $GITHUB_STEP_SUMMARY
+        done
+
+    - name: Collect artifacts
+      run: |
+        mkdir -p /workdir/output
+        find ${{ env.WORKDIR }}/bin/packages -name "*.ipk" -exec cp {} /workdir/output/ \;
+        echo "PKG_COUNT=$(find /workdir/output -name '*.ipk' | wc -l)" >> $GITHUB_ENV
+
+    - name: Upload packages
+      uses: actions/upload-artifact@main
+      with:
+        name: packages-${{ inputs.packages }}
+        path: /workdir/output/*.ipk
+
+    - name: Summary
+      run: echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY
