@@ -39,6 +39,14 @@ jobs:
     - name: Checkout
       uses: actions/checkout@main
 
+    - name: Cache ccache and dl
+      uses: actions/cache@main
+      with:
+        path: |
+          ~/.cache/ccache
+          openwrt/dl
+        key: openwrt-cache-v1
+
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
