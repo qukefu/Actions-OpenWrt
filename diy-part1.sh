@@ -14,7 +14,7 @@
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
 # Add a feed source
+# helloworld already includes passwall/ssr-plus/v2ray
 echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
-echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
 # OpenClash needs to be added as package via git clone
 git clone --depth=1 https://github.com/vernesong/OpenClash package/luci-app-openclash
