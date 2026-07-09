@@ -1,5 +1,6 @@
 name: Package Builder
 
+# Trigger: manual dispatch only
 on:
   workflow_dispatch:
     inputs:
@@ -67,4 +68,4 @@ jobs:
         path: /workdir/output/*.ipk
 
     - name: Summary
-      run: echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY
+      run: 'echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY'
