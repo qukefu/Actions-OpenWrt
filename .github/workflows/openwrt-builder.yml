@@ -1,7 +1,7 @@
 #
 # https://github.com/P3TERX/Actions-OpenWrt
 #
-# File: .github/workflows/openwrt-bulder.yml
+# File: .github/workflows/openwrt-builder.yml
 # Description: Build OpenWrt using GitHub Actions
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
@@ -46,7 +46,9 @@ jobs:
           ~/.cache/ccache
           openwrt/dl
           openwrt/staging_dir
-        key: openwrt-cache-v3
+        key: openwrt-cache-${{ hashFiles('.config') }}
+        restore-keys: |
+          openwrt-cache-
 
     - name: Initialization environment
       env:
