@@ -66,6 +66,8 @@ jobs:
       run: |
         df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
+        # Preserve cached dl/ before removing workspace openwrt/ dir
+        [ -d "$GITHUB_WORKSPACE/openwrt/dl" ] && mv "$GITHUB_WORKSPACE/openwrt/dl" /workdir/openwrt/
         rm -rf $GITHUB_WORKSPACE/openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
