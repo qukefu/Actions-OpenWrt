@@ -37,13 +37,13 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    - name: Clone LEDE source (pinned)
+    - name: Clone LEDE source
       working-directory: /workdir
       run: |
-        # Pin to the commit that the last successful Release used
         git clone https://github.com/coolsnowwolf/lede -b master openwrt
-        cd openwrt
-        git log --oneline -1
+        # Symlink for dl cache compatibility
+        rm -rf $GITHUB_WORKSPACE/openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Setup feeds
       working-directory: /workdir/openwrt
