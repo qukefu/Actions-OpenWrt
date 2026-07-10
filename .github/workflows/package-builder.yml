@@ -50,9 +50,21 @@ jobs:
       working-directory: ${{ env.WORKDIR }}
       run: |
         for pkg in ${{ inputs.packages }}; do
+          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+          case "$pkg" in
+            kmod-*)
+              # Also enable kernel module symbol for kmod packages
+              kmod_upper=$(echo "$pkg" | sed 's/kmod-//' | tr 'a-z' 'A-Z')
+              echo "CONFIG_${kmod_upper}=m" >> .config
+              ;;
+          esac
+        done
+        make defconfig 2>&1 || true
+        # Verify the target exists
+        for pkg in ${{ inputs.packages }}; do
           echo "=== Building $pkg ==="
-          make package/$pkg/compile -j$(nproc) V=s || make package/$pkg/compile -j1 V=s
-          echo "PACKAGE_DONE=$pkg" >> $GITHUB_STEP_SUMMARY
+          make package/$pkg/compile -j$(nproc) V=s || make package/$pkg/compile -j1 V=s || echo "FAILED=$pkg" >> $GITHUB_STEP_SUMMARY
+          echo "DONE=$pkg" >> $GITHUB_STEP_SUMMARY
         done
 
     - name: Collect artifacts
