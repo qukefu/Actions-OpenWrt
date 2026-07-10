@@ -45,7 +45,8 @@ jobs:
         path: |
           ~/.cache/ccache
           openwrt/dl
-        key: openwrt-cache-v1
+          openwrt/staging_dir
+        key: openwrt-cache-v3
 
     - name: Initialization environment
       env:
@@ -66,8 +67,10 @@ jobs:
       run: |
         df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
-        # Preserve cached dl/ before removing workspace openwrt/ dir
-        [ -d "$GITHUB_WORKSPACE/openwrt/dl" ] && mv "$GITHUB_WORKSPACE/openwrt/dl" /workdir/openwrt/
+        # Preserve cached dl/ and staging_dir/ before removing workspace openwrt/ dir
+        for dir in dl staging_dir; do
+          [ -d "$GITHUB_WORKSPACE/openwrt/$dir" ] && mv "$GITHUB_WORKSPACE/openwrt/$dir" /workdir/openwrt/
+        done
         rm -rf $GITHUB_WORKSPACE/openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
