@@ -70,10 +70,15 @@ jobs:
         echo CONFIG_DEVEL=y >> .config
         echo CONFIG_CCACHE=y >> .config
         echo CONFIG_AUTOREMOVE=y >> .config
+        echo CONFIG_PACKAGE_luci-base=y >> .config
+        echo CONFIG_PACKAGE_luci-compat=y >> .config
+        echo CONFIG_PACKAGE_curl=y >> .config
+        echo CONFIG_PACKAGE_jq=y >> .config
         for pkg in ${{ inputs.packages }}; do
           echo "CONFIG_PACKAGE_${pkg}=y" >> .config
         done
         make defconfig
+        grep -c "CONFIG_PACKAGE" .config || true
 
     - name: Build tools and toolchain
       working-directory: /workdir/openwrt
