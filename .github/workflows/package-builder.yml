@@ -37,6 +37,7 @@ jobs:
           cp -r package/* ${{ env.WORKDIR }}/package/
           echo "Copied custom packages:"
           ls -d ${{ env.WORKDIR }}/package/luci-app-* 2>/dev/null || echo "(checking...)"
+        fi
 
     - name: Setup feeds and defconfig
       working-directory: ${{ env.WORKDIR }}
