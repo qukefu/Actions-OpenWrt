@@ -67,6 +67,12 @@ jobs:
         echo CONFIG_DEVEL=y >> .config
         echo CONFIG_CCACHE=y >> .config
         echo CONFIG_AUTOREMOVE=y >> .config
+        # enable dependencies
+        echo CONFIG_PACKAGE_luci-base=y >> .config
+        echo CONFIG_PACKAGE_luci-compat=y >> .config
+        echo CONFIG_PACKAGE_curl=y >> .config
+        echo CONFIG_PACKAGE_jq=y >> .config
+        echo CONFIG_PACKAGE_luci=y >> .config
         for pkg in ${{ inputs.packages }}; do
           echo "CONFIG_PACKAGE_${pkg}=y" >> .config
         done
