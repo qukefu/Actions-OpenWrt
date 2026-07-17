@@ -17,13 +17,17 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Cache ccache and dl
+    - name: Cache toolchain and downloads
       uses: actions/cache@v4
       with:
         path: |
           ~/.cache/ccache
-          openwrt/dl
-        key: openwrt-cache-v2
+          /workdir/openwrt/dl
+          /workdir/openwrt/staging_dir
+          /workdir/openwrt/build_dir/host
+        key: openwrt-cache-v3-${{ hashFiles('.config') }}
+        restore-keys: |
+          openwrt-cache-v3-
 
     - name: Install build dependencies
       env:
@@ -48,8 +52,7 @@ jobs:
       run: |
         if [ -d $GITHUB_WORKSPACE/package ]; then
           cp -r $GITHUB_WORKSPACE/package/luci-app-easyclash /workdir/openwrt/package/
-          echo "Copied custom package:"
-          ls -la /workdir/openwrt/package/luci-app-easyclash/Makefile
+          echo "Custom package copied"
         fi
 
     - name: Setup feeds
@@ -67,24 +70,25 @@ jobs:
         done
         make defconfig
 
-    - name: Download packages
+    - name: Build tools and toolchain
       working-directory: /workdir/openwrt
       run: |
-        make download -j8
-        find dl -size -1024c -exec rm -f {} \;
+        make tools/install -j$(nproc) || make tools/install -j1
+        make toolchain/install -j$(nproc) || make toolchain/install -j1
 
     - name: Build packages
       working-directory: /workdir/openwrt
       run: |
         for pkg in ${{ inputs.packages }}; do
           echo "=== Building $pkg ==="
-          make package/$pkg/compile -j$(nproc) V=s || make package/$pkg/compile -j1 V=s
+          make package/$pkg/compile V=s -j$(nproc) || make package/$pkg/compile V=s -j1
         done
 
     - name: Collect IPKs
       run: |
         mkdir -p /workdir/output
         find /workdir/openwrt/bin/packages -name "*.ipk" -exec cp {} /workdir/output/ \;
+        echo "=== Built packages ==="
         ls -la /workdir/output/
         echo "PKG_COUNT=$(ls /workdir/output/*.ipk 2>/dev/null | wc -l)" >> $GITHUB_ENV
 
@@ -95,5 +99,4 @@ jobs:
         path: /workdir/output/*.ipk
 
     - name: Summary
-      run: |
-        echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY
+      run: 'echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY'
