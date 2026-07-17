@@ -1,11 +1,25 @@
 #!/bin/sh
 
-CLASH_API="http://127.0.0.1:9090"
+CLASH_PORT=$(uci -q get openclash.config.cn_port || echo "9090")
+CLASH_SECRET=$(uci -q get openclash.config.dashboard_password || echo "")
+CLASH_API="http://127.0.0.1:${CLASH_PORT}"
 SPEED_URL="http://www.gstatic.com/generate_204"
 SPEED_TIMEOUT=5000
 
+_auth_header() {
+	if [ -n "$CLASH_SECRET" ]; then
+		echo "-H \"Authorization: Bearer ${CLASH_SECRET}\""
+	fi
+}
+
+_curl() {
+	local url="$1"
+	shift
+	eval curl -s $(_auth_header) "$@" "\"${url}\""
+}
+
 get_proxies() {
-	curl -s "${CLASH_API}/proxies"
+	_curl "${CLASH_API}/proxies"
 }
 
 get_proxy_groups() {

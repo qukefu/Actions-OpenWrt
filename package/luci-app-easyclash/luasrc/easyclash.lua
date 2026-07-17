@@ -5,7 +5,21 @@ local fs = require("nixio.fs")
 local M = {}
 
 local SCRIPT = "/usr/share/easyclash/easyclash.sh"
-local CLASH_API = "http://127.0.0.1:9090"
+
+function M.get_clash_secret()
+	local secret = uci:get("openclash", "config", "dashboard_password") or ""
+	return secret
+end
+
+function M.get_clash_port()
+	local port = uci:get("openclash", "config", "cn_port") or "9090"
+	return port
+end
+
+function M.get_clash_api_base()
+	local port = M.get_clash_port()
+	return "http://127.0.0.1:" .. port
+end
 
 function M.shell_exec(cmd)
 	local p = io.popen(cmd .. " 2>/dev/null")
@@ -16,8 +30,14 @@ function M.shell_exec(cmd)
 end
 
 function M.clash_api(path)
+	local secret = M.get_clash_secret()
+	local base = M.get_clash_api_base()
 	local u = fs.access("/usr/bin/curl") and "/usr/bin/curl" or "curl"
-	local cmd = u .. ' -s --connect-timeout 3 "' .. CLASH_API .. path .. '"'
+	local auth = ""
+	if secret ~= "" then
+		auth = ' -H "Authorization: Bearer ' .. secret .. '"'
+	end
+	local cmd = u .. ' -s --connect-timeout 3' .. auth .. ' "' .. base .. path .. '"'
 	local p = io.popen(cmd)
 	if not p then return nil end
 	local out = p:read("*a")
@@ -66,7 +86,10 @@ end
 function M.speed_test(name, timeout, url)
 	timeout = timeout or 5000
 	url = url or "http://www.gstatic.com/generate_204"
-	local u = "curl -s --connect-timeout 5 \"" .. CLASH_API .. "/proxies/" .. M.urlencode(name) .. "/delay?url=" .. M.urlencode(url) .. "&timeout=" .. timeout .. "\""
+	local secret = M.get_clash_secret()
+	local auth = ""
+	if secret ~= "" then auth = ' -H "Authorization: Bearer ' .. secret .. '"' end
+	local u = "curl -s --connect-timeout 5" .. auth .. " \"" .. M.get_clash_api_base() .. "/proxies/" .. M.urlencode(name) .. "/delay?url=" .. M.urlencode(url) .. "&timeout=" .. timeout .. "\""
 	local p = io.popen(u)
 	if not p then return -1 end
 	local out = p:read("*a")
@@ -78,7 +101,10 @@ function M.speed_test(name, timeout, url)
 end
 
 function M.switch_proxy(group, name)
-	local u = "curl -s -X PUT \"" .. CLASH_API .. "/proxies/" .. M.urlencode(group) .. "\" -H \"Content-Type: application/json\" -d '{\"name\":\"" .. name .. "\"}'"
+	local secret = M.get_clash_secret()
+	local auth = ""
+	if secret ~= "" then auth = ' -H "Authorization: Bearer ' .. secret .. '"' end
+	local u = "curl -s -X PUT" .. auth .. " \"" .. M.get_clash_api_base() .. "/proxies/" .. M.urlencode(group) .. "\" -H \"Content-Type: application/json\" -d '{\"name\":\"" .. name .. "\"}'"
 	local p = io.popen(u)
 	if not p then return false end
 	p:read("*a")
