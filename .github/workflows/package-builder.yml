@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       packages:
-        description: 'Packages to build (e.g. luci-app-passwall, space-separated)'
+        description: 'Packages to build (space-separated)'
         required: true
         type: string
         default: 'luci-app-passwall'
@@ -21,52 +21,39 @@ jobs:
         RELEASE=$(curl -s https://api.github.com/repos/qukefu/Actions-OpenWrt/releases/latest \
           | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
         SDK_URL="https://github.com/qukefu/Actions-OpenWrt/releases/download/${RELEASE}/openwrt-sdk-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.xz"
-        echo "SDK_URL=$SDK_URL"
         mkdir -p $GITHUB_WORKSPACE/workdir && cd $GITHUB_WORKSPACE/workdir
         wget -q "$SDK_URL" -O sdk.tar.xz || { echo "SDK not found"; exit 1; }
-        tar -xf sdk.tar.xz
-        mv openwrt-sdk-* sdk
+        tar -xf sdk.tar.xz && mv openwrt-sdk-* sdk
         echo "WORKDIR=$(pwd)/sdk" >> $GITHUB_ENV
 
-    - name: Copy package and build
+    - name: Setup feeds and register custom packages
+      working-directory: ${{ env.WORKDIR }}
       run: |
-        if [ -d package ]; then
-          cp -r package/* ${{ env.WORKDIR }}/package/
-          echo "Copied:"
-          ls -la ${{ env.WORKDIR }}/package/luci-app-easyclash/Makefile
-        fi
+        echo "src-link local $GITHUB_WORKSPACE/package" >> feeds.conf.default
+        ./scripts/feeds update -a
+        for pkg in ${{ inputs.packages }}; do
+          ./scripts/feeds install "$pkg"
+        done
+        make defconfig
 
-        cd ${{ env.WORKDIR }}
-
+    - name: Build packages
+      working-directory: ${{ env.WORKDIR }}
+      run: |
         for pkg in ${{ inputs.packages }}; do
           echo "=== Building $pkg ==="
-          if [ ! -f "package/$pkg/Makefile" ]; then
-            echo "ERROR: Makefile not found at package/$pkg/Makefile"
-            continue
-          fi
-
           echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           make defconfig 2>/dev/null || true
-
-          ls -la .config
-          grep "easyclash" .config 2>/dev/null || echo "(not in config)"
-
-          make package/$pkg/compile V=s -j$(nproc) 2>&1 | tail -80 || \
-          make package/$pkg/compile V=s -j1 2>&1 | tail -40 || \
+          make package/$pkg/compile V=s -j$(nproc) || \
+          make package/$pkg/compile V=s -j1 || \
           echo "FAILED: $pkg"
         done
 
-    - name: Collect and upload artifacts
+    - name: Collect artifacts
       run: |
         mkdir -p $GITHUB_WORKSPACE/workdir/output
         find ${{ env.WORKDIR }}/bin -name "*.ipk" -exec cp {} $GITHUB_WORKSPACE/workdir/output/ \; 2>/dev/null || true
         echo "PKG_COUNT=$(find $GITHUB_WORKSPACE/workdir/output -name '*.ipk' 2>/dev/null | wc -l)" >> $GITHUB_ENV
-        if [ $PKG_COUNT -gt 0 ]; then
-          ls -la $GITHUB_WORKSPACE/workdir/output/
-        else
-          echo "No packages found. Checking build output:"
-          find ${{ env.WORKDIR }}/bin -type f 2>/dev/null | head -20 || echo "(nothing in bin/)"
-        fi
+        find $GITHUB_WORKSPACE/workdir/output -name "*.ipk" 2>/dev/null | head -20
 
     - name: Upload packages
       uses: actions/upload-artifact@v4
