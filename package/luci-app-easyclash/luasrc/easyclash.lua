@@ -59,21 +59,51 @@ end
 
 function M.get_proxy_groups()
 	local proxies = M.get_proxies()
+	local cache = M.get_speed_cache()
 	local groups = {}
 	for name, info in pairs(proxies) do
 		local t = info.type
 		if t == "Selector" or t == "URLTest" or t == "Fallback" or t == "LoadBalance" then
+			local nodes = {}
+			for _, node in ipairs(info.all or {}) do
+				local cached = nil
+				if cache[node] then
+					local d = tonumber(cache[node])
+					if d and d >= 0 then cached = d end
+				end
+				table.insert(nodes, {name = node, cached_delay = cached})
+			end
 			local g = {
 				name = name,
 				type = t,
 				now = info.now or "",
-				all = info.all or {},
+				nodes = nodes,
 			}
 			table.insert(groups, g)
 		end
 	end
 	table.sort(groups, function(a, b) return a.name < b.name end)
 	return groups
+end
+
+function M.get_speed_cache()
+	local f = io.open("/tmp/easyclash_speedtest.json", "r")
+	if not f then return {} end
+	local raw = f:read("*a")
+	f:close()
+	local ok, data = pcall(json.parse, raw)
+	if not ok then return {} end
+	return data
+end
+
+function M.save_speed_cache(name, delay)
+	local cache = M.get_speed_cache()
+	cache[name] = tostring(delay)
+	local f = io.open("/tmp/easyclash_speedtest.json", "w")
+	if f then
+		f:write(json.stringify(cache))
+		f:close()
+	end
 end
 
 function M.urlencode(s)
@@ -84,7 +114,7 @@ function M.urlencode(s)
 end
 
 function M.speed_test(name, timeout, url)
-	timeout = timeout or 5000
+	timeout = timeout or 2000
 	url = url or "http://www.gstatic.com/generate_204"
 	local secret = M.get_clash_secret()
 	local auth = ""

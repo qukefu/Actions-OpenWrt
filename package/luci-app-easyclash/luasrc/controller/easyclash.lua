@@ -27,7 +27,7 @@ function index()
 
 	-- Subscribe tab
 	e = entry({"admin", "services", "easyclash", "subscribe"},
-		cbi("easyclash/subscribe"), _("Subscribe"), 30)
+		template("easyclash/subscribe"), _("Subscribe"), 30)
 	e.leaf = true
 	e.sysauth = false
 
@@ -101,6 +101,7 @@ function api_speedtest()
 		return
 	end
 	local delay = ec.speed_test(name)
+	ec.save_speed_cache(name, delay)
 	json_response({ok = true, name = name, delay = delay})
 end
 

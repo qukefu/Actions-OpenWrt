@@ -216,6 +216,70 @@ body {
 .ec-delay-slow { color: #e74c3c; }
 .ec-delay-timeout { color: #999; }
 
+.ec-bar-wrap {
+	position: relative;
+	height: 20px;
+	background: #f0f1f5;
+	border-radius: 4px;
+	overflow: hidden;
+	min-width: 80px;
+}
+
+.ec-bar-fill {
+	position: absolute;
+	left: 0;
+	top: 0;
+	height: 100%;
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+.ec-bar-fast { background: #27ae60; }
+.ec-bar-mid { background: #f39c12; }
+.ec-bar-slow { background: #e74c3c; }
+.ec-bar-timeout { background: #ddd; }
+
+.ec-bar-label {
+	position: relative;
+	display: block;
+	text-align: center;
+	font-size: 11px;
+	line-height: 20px;
+	color: #555;
+	font-weight: 500;
+	z-index: 1;
+}
+
+.ec-toolbar-note {
+	font-size: 12px;
+	color: #888;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.ec-sub-input {
+	padding: 8px 12px;
+	border: 1px solid #d0d5dd;
+	border-radius: 6px;
+	font-size: 13px;
+	outline: none;
+	width: 160px;
+	margin-right: 8px;
+}
+
+.ec-sub-input:focus {
+	border-color: #4a6cf7;
+}
+
+.ec-btn-del {
+	color: #e74c3c;
+	border-color: #e74c3c;
+}
+
+.ec-btn-del:hover {
+	background: #fdf0ed;
+}
+
 .ec-loading-small {
 	color: #999;
 	font-style: italic;

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyClash - Subscribe</title>
+<link rel="stylesheet" href="/luci-static/resources/easyclash/main.css">
+</head>
+<body>
+<div id="easyclash-app">
+	<nav class="ec-nav">
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "nodes")%>" class="ec-nav-item">Nodes</a>
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "clients")%>" class="ec-nav-item">Clients</a>
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "subscribe")%>" class="ec-nav-item active">Subscribe</a>
+	</nav>
+
+	<div class="ec-status-bar">
+		<span class="ec-status-label">Manage subscription links for proxy node updates.</span>
+	</div>
+
+	<div class="ec-toolbar">
+		<input type="text" id="sub-name" placeholder="Name (optional)" class="ec-sub-input">
+		<input type="url" id="sub-url" placeholder="Subscription URL" class="ec-sub-input" style="width:380px">
+		<button class="ec-btn ec-btn-primary" id="btn-add-sub">Add</button>
+		<button class="ec-btn ec-btn-primary" id="btn-update-all" style="background:#27ae60;border-color:#27ae60">Update All</button>
+	</div>
+
+	<div id="ec-sub-list">
+		<div class="ec-loading">Loading...</div>
+	</div>
+</div>
+
+<script>
+var BASE = '<%=luci.dispatcher.build_url("admin", "services", "easyclash", "api")%>';
+
+function apiCall(endpoint, data, cb) {
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST', BASE + '/' + endpoint, true);
+	xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+	xhr.onload = function() {
+		if (xhr.status == 200) {
+			try { cb(JSON.parse(xhr.responseText)); } catch(e) { cb(null); }
+		} else { cb(null); }
+	};
+	xhr.onerror = function() { cb(null); };
+	var params = [];
+	for (var k in data) {
+		params.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+	}
+	xhr.send(params.join('&'));
+}
+
+function escHtml(s) {
+	if (!s) return '';
+	return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function loadSubs() {
+	apiCall('subs', {}, function(data) {
+		var el = document.getElementById('ec-sub-list');
+		if (!data || data.length == 0) {
+			el.innerHTML = '<div class="ec-empty">No subscriptions configured. Add one above.</div>';
+			return;
+		}
+		var html = '<table class="ec-client-table"><thead><tr><th>Name</th><th>URL</th><th>Last Update</th><th width="80">Action</th></tr></thead><tbody>';
+		for (var i = 0; i < data.length; i++) {
+			var sub = data[i];
+			html += '<tr>';
+			html += '<td style="font-weight:500">' + escHtml(sub.name || '-') + '</td>';
+			html += '<td style="font-family:monospace;font-size:12px;word-break:break-all">' + escHtml(sub.url) + '</td>';
+			html += '<td style="font-size:12px;color:#888">' + escHtml(sub.last_update || 'Never') + ' ' + escHtml(sub.status || '') + '</td>';
+			html += '<td><button class="ec-btn ec-btn-sm ec-btn-del" onclick="deleteSub(' + i + ')">Delete</button></td>';
+			html += '</tr>';
+		}
+		html += '</tbody></table>';
+		el.innerHTML = html;
+	});
+}
+
+function deleteSub(idx) {
+	if (!confirm('Delete this subscription?')) return;
+	apiCall('del_sub', {idx: idx}, function(r) {
+		if (r && r.ok) loadSubs();
+	});
+}
+
+document.getElementById('btn-add-sub').addEventListener('click', function() {
+	var url = document.getElementById('sub-url').value.trim();
+	var name = document.getElementById('sub-name').value.trim();
+	if (!url) return;
+	apiCall('add_sub', {url: url, name: name}, function(r) {
+		if (r && r.ok) {
+			document.getElementById('sub-name').value = '';
+			document.getElementById('sub-url').value = '';
+			loadSubs();
+		}
+	});
+});
+
+document.getElementById('btn-update-all').addEventListener('click', function() {
+	apiCall('update_sub', {}, function(r) {
+		if (r && r.ok) setTimeout(loadSubs, 2000);
+	});
+});
+
+loadSubs();
+</script>
+</body>
+</html>

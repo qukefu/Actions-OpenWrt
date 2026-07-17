@@ -60,14 +60,13 @@ endef
 
 define Package/luci-app-easyclash/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/easyclash
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/easyclash
 
 	$(INSTALL_DATA) ./luasrc/controller/easyclash.lua $(1)/usr/lib/lua/luci/controller/
 	$(INSTALL_DATA) ./luasrc/easyclash.lua $(1)/usr/lib/lua/luci/
-	$(INSTALL_DATA) ./luasrc/model/cbi/easyclash/subscribe.lua $(1)/usr/lib/lua/luci/model/cbi/easyclash/
 	$(INSTALL_DATA) ./luasrc/view/easyclash/nodes.htm $(1)/usr/lib/lua/luci/view/easyclash/
 	$(INSTALL_DATA) ./luasrc/view/easyclash/clients.htm $(1)/usr/lib/lua/luci/view/easyclash/
+	$(INSTALL_DATA) ./luasrc/view/easyclash/subscribe.htm $(1)/usr/lib/lua/luci/view/easyclash/
 
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
