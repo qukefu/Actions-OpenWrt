@@ -73,11 +73,13 @@ define Package/luci-app-easyclash/install
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_DIR) $(1)/usr/share/easyclash
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/easyclash
+	$(INSTALL_DIR) $(1)/www
 
 	$(INSTALL_DATA) ./root/etc/config/easyclash $(1)/etc/config/
 	$(INSTALL_BIN) ./root/etc/uci-defaults/99-easyclash-http $(1)/etc/uci-defaults/
 	$(INSTALL_BIN) ./root/usr/share/easyclash/easyclash.sh $(1)/usr/share/easyclash/
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/easyclash/main.css $(1)/www/luci-static/resources/easyclash/
+	$(INSTALL_DATA) ./root/www/index.html $(1)/www/
 endef
 
 $(eval $(call BuildPackage,luci-app-easyclash))

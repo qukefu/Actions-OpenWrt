@@ -3,7 +3,7 @@
 if ! uci -q get uhttpd.easyclash >/dev/null 2>&1; then
 	uci set uhttpd.easyclash=uhttpd
 	uci set uhttpd.easyclash.listen_http='0.0.0.0:8080'
-	uci set uhttpd.easyclash.index_page='cgi-bin/luci/admin/services/easyclash/nodes'
+	uci set uhttpd.easyclash.index_page='index.html'
 	uci set uhttpd.easyclash.home='/www'
 	uci set uhttpd.easyclash.cgi_prefix='/cgi-bin'
 	uci commit uhttpd
