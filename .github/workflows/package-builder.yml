@@ -12,54 +12,93 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Download latest SDK
-      run: |
-        RELEASE=$(curl -s https://api.github.com/repos/qukefu/Actions-OpenWrt/releases/latest \
-          | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-        SDK_URL="https://github.com/qukefu/Actions-OpenWrt/releases/download/${RELEASE}/openwrt-sdk-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.xz"
-        mkdir -p $GITHUB_WORKSPACE/workdir && cd $GITHUB_WORKSPACE/workdir
-        wget -q "$SDK_URL" -O sdk.tar.xz || { echo "SDK not found"; exit 1; }
-        tar -xf sdk.tar.xz && mv openwrt-sdk-* sdk
-        echo "WORKDIR=$(pwd)/sdk" >> $GITHUB_ENV
+    - name: Cache ccache and dl
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/ccache
+          openwrt/dl
+        key: openwrt-cache-v2
 
-    - name: Setup feeds and register custom packages
-      working-directory: ${{ env.WORKDIR }}
+    - name: Install build dependencies
+      env:
+        DEBIAN_FRONTEND: noninteractive
       run: |
-        echo "src-link local $GITHUB_WORKSPACE/package" >> feeds.conf.default
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo docker image prune --all --force
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install build-essential ccache gcc-multilib g++-multilib flex bison gawk git libncurses-dev libssl-dev python3 python3-setuptools swig unzip wget rsync
+        sudo timedatectl set-timezone "Asia/Shanghai"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: Clone LEDE source
+      working-directory: /workdir
+      run: |
+        git clone https://github.com/coolsnowwolf/lede -b master openwrt
+        rm -rf $GITHUB_WORKSPACE/openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: Copy custom packages
+      run: |
+        if [ -d $GITHUB_WORKSPACE/package ]; then
+          cp -r $GITHUB_WORKSPACE/package/luci-app-easyclash /workdir/openwrt/package/
+          echo "Copied custom package:"
+          ls -la /workdir/openwrt/package/luci-app-easyclash/Makefile
+        fi
+
+    - name: Setup feeds
+      working-directory: /workdir/openwrt
+      run: |
         ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Configure
+      working-directory: /workdir/openwrt
+      run: |
+        echo CONFIG_TARGET_x86=y > .config
+        echo CONFIG_TARGET_x86_64=y >> .config
+        echo CONFIG_TARGET_x86_64_DEVICE_generic=y >> .config
+        echo CONFIG_DEVEL=y >> .config
+        echo CONFIG_CCACHE=y >> .config
+        echo CONFIG_AUTOREMOVE=y >> .config
         for pkg in ${{ inputs.packages }}; do
-          ./scripts/feeds install "$pkg"
+          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
         done
         make defconfig
 
+    - name: Download packages
+      working-directory: /workdir/openwrt
+      run: |
+        make download -j8
+        find dl -size -1024c -exec rm -f {} \;
+
     - name: Build packages
-      working-directory: ${{ env.WORKDIR }}
+      working-directory: /workdir/openwrt
       run: |
         for pkg in ${{ inputs.packages }}; do
           echo "=== Building $pkg ==="
-          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
-          make defconfig 2>/dev/null || true
-          make package/$pkg/compile V=s -j$(nproc) || \
-          make package/$pkg/compile V=s -j1 || \
-          echo "FAILED: $pkg"
+          make package/$pkg/compile -j$(nproc) V=s || make package/$pkg/compile -j1 V=s
         done
 
-    - name: Collect artifacts
+    - name: Collect IPKs
       run: |
-        mkdir -p $GITHUB_WORKSPACE/workdir/output
-        find ${{ env.WORKDIR }}/bin -name "*.ipk" -exec cp {} $GITHUB_WORKSPACE/workdir/output/ \; 2>/dev/null || true
-        echo "PKG_COUNT=$(find $GITHUB_WORKSPACE/workdir/output -name '*.ipk' 2>/dev/null | wc -l)" >> $GITHUB_ENV
-        find $GITHUB_WORKSPACE/workdir/output -name "*.ipk" 2>/dev/null | head -20
+        mkdir -p /workdir/output
+        find /workdir/openwrt/bin/packages -name "*.ipk" -exec cp {} /workdir/output/ \;
+        ls -la /workdir/output/
+        echo "PKG_COUNT=$(ls /workdir/output/*.ipk 2>/dev/null | wc -l)" >> $GITHUB_ENV
 
     - name: Upload packages
       uses: actions/upload-artifact@v4
       with:
         name: packages-${{ inputs.packages }}
-        path: ${{ github.workspace }}/workdir/output/*.ipk
+        path: /workdir/output/*.ipk
 
     - name: Summary
-      run: 'echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY'
+      run: |
+        echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY
