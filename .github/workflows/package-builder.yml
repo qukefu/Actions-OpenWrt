@@ -17,17 +17,21 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Cache toolchain and downloads
+    - name: Cache tools and toolchain (always save)
+      uses: actions/cache@v4
+      with:
+        path: |
+          /workdir/openwrt/staging_dir
+          /workdir/openwrt/build_dir/host
+        key: openwrt-tools-v1
+
+    - name: Cache ccache and dl
       uses: actions/cache@v4
       with:
         path: |
           ~/.cache/ccache
           /workdir/openwrt/dl
-          /workdir/openwrt/staging_dir
-          /workdir/openwrt/build_dir/host
-        key: openwrt-cache-v3-${{ hashFiles('.config') }}
-        restore-keys: |
-          openwrt-cache-v3-
+        key: openwrt-dl-ccache-v1
 
     - name: Install build dependencies
       env:
