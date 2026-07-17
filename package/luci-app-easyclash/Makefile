@@ -14,7 +14,6 @@ define Package/luci-app-easyclash
 	CATEGORY:=LuCI
 	SUBMENU:=3. Applications
 	TITLE:=EasyClash - Simplified OpenClash control panel
-	DEPENDS:=+luci-base +luci-compat +curl +jq
 	PKGARCH:=all
 endef
 
