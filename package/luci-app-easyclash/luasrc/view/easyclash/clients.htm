@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyClash - Clients</title>
+<link rel="stylesheet" href="/luci-static/resources/easyclash/main.css">
+</head>
+<body>
+<div id="easyclash-app">
+	<nav class="ec-nav">
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "nodes")%>" class="ec-nav-item">Nodes</a>
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "clients")%>" class="ec-nav-item active">Clients</a>
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "subscribe")%>" class="ec-nav-item">Subscribe</a>
+	</nav>
+
+	<div class="ec-status-bar">
+		<span class="ec-status-label">Default: <strong>All Direct</strong></span>
+		<span class="ec-status-label ec-refresh-indicator">Auto-refresh every 3s</span>
+	</div>
+
+	<div id="ec-clients-list">
+		<div class="ec-loading">Loading...</div>
+	</div>
+</div>
+
+<script>
+var BASE = '<%=luci.dispatcher.build_url("admin", "services", "easyclash", "api")%>';
+
+function apiCall(endpoint, data, cb) {
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST', BASE + '/' + endpoint, true);
+	xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+	xhr.onload = function() {
+		if (xhr.status == 200) {
+			try { cb(JSON.parse(xhr.responseText)); } catch(e) { cb(null); }
+		} else { cb(null); }
+	};
+	xhr.onerror = function() { cb(null); };
+	var params = [];
+	for (var k in data) {
+		params.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+	}
+	xhr.send(params.join('&'));
+}
+
+function formatTraffic(bytes) {
+	if (!bytes || bytes == 0) return '0';
+	if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + 'M';
+	if (bytes >= 1024) return (bytes / 1024).toFixed(1) + 'K';
+	return bytes.toString();
+}
+
+function escHtml(s) {
+	if (!s) return '';
+	return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escAttr(s) {
+	if (!s) return '';
+	return s.replace(/'/g,"\\'").replace(/"/g,'\\"');
+}
+
+function loadClients() {
+	apiCall('clients', {}, function(data) {
+		if (!data) return;
+		renderClients(data);
+	});
+}
+
+function renderClients(clients) {
+	var el = document.getElementById('ec-clients-list');
+	if (!clients || clients.length == 0) {
+		el.innerHTML = '<div class="ec-empty">No devices found</div>';
+		return;
+	}
+
+	var onlineClients = [];
+	var offlineClients = [];
+	for (var i = 0; i < clients.length; i++) {
+		if (clients[i].online) {
+			onlineClients.push(clients[i]);
+		} else {
+			offlineClients.push(clients[i]);
+		}
+	}
+
+	var html = '';
+	if (onlineClients.length > 0) {
+		html += '<div class="ec-section-title">Online (' + onlineClients.length + ')</div>';
+		html += renderTable(onlineClients, true);
+	}
+	if (offlineClients.length > 0) {
+		html += '<div class="ec-section-title ec-section-offline">Offline (' + offlineClients.length + ')</div>';
+		html += renderTable(offlineClients, false);
+	}
+	el.innerHTML = html;
+
+	loadTrafficData();
+}
+
+function renderTable(clients, online) {
+	var html = '<table class="ec-client-table"><thead><tr>';
+	html += '<th width="30"></th>';
+	html += '<th>Device</th>';
+	html += '<th>IP</th>';
+	html += '<th width="50">Proxy</th>';
+	if (online) html += '<th width="120">Traffic</th>';
+	html += '</tr></thead><tbody>';
+
+	for (var i = 0; i < clients.length; i++) {
+		var c = clients[i];
+		var displayName = c.alias || c.hostname || ('Unknown(' + c.mac.substring(0, 8).toUpperCase() + '...)');
+		var favIcon = c.favorite ? '★' : '☆';
+		var favClass = c.favorite ? 'ec-fav-active' : 'ec-fav-inactive';
+		var proxyOn = !!c.proxy;
+
+		html += '<tr class="ec-client-row' + (c.favorite ? ' ec-fav-row' : '') + '">';
+		html += '<td><span class="ec-fav ' + favClass + '" onclick="toggleFavorite(\'' + escAttr(c.mac) + '\')">' + favIcon + '</span></td>';
+		html += '<td><span class="ec-device-name">' + escHtml(displayName) + '</span>';
+		html += ' <a class="ec-alias-edit" onclick="startEditAlias(this, \'' + escAttr(c.mac) + '\', \'' + escAttr(displayName) + '\')">&#9998;</a></td>';
+		html += '<td class="ec-ip">' + escHtml(c.ip) + '</td>';
+		html += '<td><button class="ec-toggle' + (proxyOn ? ' ec-toggle-on' : ' ec-toggle-off') + '" onclick="toggleProxy(\'' + escAttr(c.mac) + '\', \'' + escAttr(c.ip) + '\')">' + (proxyOn ? 'ON' : 'OFF') + '</button></td>';
+		if (online) {
+			html += '<td class="ec-traffic-cell" id="traffic-' + escAttr(c.ip) + '">-</td>';
+		}
+		html += '</tr>';
+	}
+	html += '</tbody></table>';
+	return html;
+}
+
+function toggleProxy(mac, ip) {
+	apiCall('toggle_proxy', {mac: mac, ip: ip}, function(r) {
+		if (r && r.ok) {
+			loadClients();
+		}
+	});
+}
+
+function toggleFavorite(mac) {
+	apiCall('toggle_favorite', {mac: mac}, function(r) {
+		if (r && r.ok) {
+			loadClients();
+		}
+	});
+}
+
+function startEditAlias(el, mac, currentName) {
+	var td = el.parentNode;
+	var oldHtml = td.innerHTML;
+	td.innerHTML = '<input type="text" class="ec-alias-input" value="' + escHtml(currentName) + '" data-mac="' + escAttr(mac) + '">' +
+		'<button class="ec-btn ec-btn-sm ec-btn-save" onclick="saveAlias(this, \'' + escAttr(mac) + '\')">Save</button>' +
+		'<button class="ec-btn ec-btn-sm" onclick="cancelAlias(this, \'' + escAttr(currentName).replace(/'/g, '&#39;') + '\')">Cancel</button>';
+	var input = td.querySelector('.ec-alias-input');
+	input.focus();
+	input.select();
+}
+
+function saveAlias(btn, mac) {
+	var input = btn.parentNode.querySelector('.ec-alias-input');
+	var name = input.value.trim();
+	if (!name) { loadClients(); return; }
+	apiCall('save_alias', {mac: mac, name: name}, function(r) {
+		if (r && r.ok) loadClients();
+	});
+}
+
+function cancelAlias(btn, oldName) {
+	loadClients();
+}
+
+function loadTrafficData() {
+	var cells = document.querySelectorAll('.ec-traffic-cell');
+	for (var i = 0; i < cells.length; i++) {
+		var cell = cells[i];
+		var ip = cell.id.replace('traffic-', '');
+		(function(el, ipAddr) {
+			apiCall('traffic', {ip: ipAddr}, function(r) {
+				if (r && r.ok) {
+					var up = formatTraffic(r.upload);
+					var down = formatTraffic(r.download);
+					if (r.connections > 0) {
+						el.innerHTML = '<span style="color:#e74c3c">&#9650;' + up + '</span> <span style="color:#3498db">&#9660;' + down + '</span>';
+					} else {
+						el.innerHTML = '-';
+					}
+				}
+			});
+		})(cell, ip);
+	}
+}
+
+loadClients();
+setInterval(loadClients, 3000);
+</script>
+</body>
+</html>

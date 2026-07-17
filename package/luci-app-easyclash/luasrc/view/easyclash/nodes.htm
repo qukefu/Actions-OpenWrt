@@ -1,0 +1,169 @@
+<%
+local ec = require("luci.easyclash")
+local info = ec.get_clash_info()
+-%>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyClash - Nodes</title>
+<link rel="stylesheet" href="/luci-static/resources/easyclash/main.css">
+</head>
+<body>
+<div id="easyclash-app">
+	<nav class="ec-nav">
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "nodes")%>" class="ec-nav-item active">Nodes</a>
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "clients")%>" class="ec-nav-item">Clients</a>
+		<a href="<%=luci.dispatcher.build_url("admin", "services", "easyclash", "subscribe")%>" class="ec-nav-item">Subscribe</a>
+	</nav>
+
+	<div class="ec-status-bar">
+		<span class="ec-status-label">Mode: <strong id="ec-mode"><%=info.mode%></strong></span>
+		<span class="ec-status-label">Status: <strong id="ec-running"><%if info.running then%>Running<%else%>Stopped<%end%></strong></span>
+		<span class="ec-status-label">Uptime: <strong id="ec-uptime"><%=info.uptime%></strong></span>
+	</div>
+
+	<div class="ec-toolbar">
+		<button class="ec-btn ec-btn-primary" id="btn-speedtest-all">Speed Test All</button>
+		<span class="ec-loading" id="loading-all" style="display:none">Testing...</span>
+	</div>
+
+	<div id="ec-proxy-list">
+		<div class="ec-loading">Loading...</div>
+	</div>
+</div>
+
+<script>
+var BASE = '<%=luci.dispatcher.build_url("admin", "services", "easyclash", "api")%>';
+
+function apiCall(endpoint, data, cb) {
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST', BASE + '/' + endpoint, true);
+	xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+	xhr.onload = function() {
+		if (xhr.status == 200) {
+			try { cb(JSON.parse(xhr.responseText)); } catch(e) { cb(null); }
+		} else { cb(null); }
+	};
+	xhr.onerror = function() { cb(null); };
+	var params = [];
+	for (var k in data) {
+		params.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+	}
+	xhr.send(params.join('&'));
+}
+
+function formatDelay(d) {
+	if (d < 0) return '<span class="ec-delay ec-delay-timeout">Timeout</span>';
+	if (d < 100) return '<span class="ec-delay ec-delay-fast">' + d + 'ms</span>';
+	if (d < 300) return '<span class="ec-delay ec-delay-mid">' + d + 'ms</span>';
+	return '<span class="ec-delay ec-delay-slow">' + d + 'ms</span>';
+}
+
+function loadProxies() {
+	apiCall('proxies', {}, function(data) {
+		var el = document.getElementById('ec-proxy-list');
+		if (!data || data.length == 0) {
+			el.innerHTML = '<div class="ec-empty">No proxy groups found. Is Clash running?</div>';
+			return;
+		}
+		var html = '';
+		for (var i = 0; i < data.length; i++) {
+			var g = data[i];
+			html += '<div class="ec-group">';
+			html += '<div class="ec-group-header" onclick="toggleGroup(this)">';
+			html += '<span class="ec-group-arrow">&#9654;</span> ';
+			html += '<span class="ec-group-name">' + escHtml(g.name) + '</span>';
+			html += '<span class="ec-group-type">' + escHtml(g.type) + '</span>';
+			html += '<span class="ec-group-now">Current: <strong>' + escHtml(g.now) + '</strong></span>';
+			html += '</div>';
+			html += '<div class="ec-group-body" style="display:none">';
+			html += '<table class="ec-node-table">';
+			for (var j = 0; j < g.all.length; j++) {
+				var node = g.all[j];
+				var isCurrent = (node == g.now);
+				html += '<tr class="ec-node' + (isCurrent ? ' ec-node-current' : '') + '">';
+				html += '<td><span class="ec-radio' + (isCurrent ? ' ec-radio-active' : '') + '" onclick="switchProxy(\'' + escAttr(g.name) + '\', \'' + escAttr(node) + '\')"></span></td>';
+				html += '<td class="ec-node-name">' + escHtml(node) + '</td>';
+				html += '<td class="ec-node-delay" id="delay-' + escAttr(g.name) + '-' + escAttr(node) + '">-</td>';
+				html += '<td><button class="ec-btn ec-btn-sm" onclick="speedTestNode(\'' + escAttr(g.name) + '\', \'' + escAttr(node) + '\')">Test</button></td>';
+				html += '</tr>';
+			}
+			html += '</table></div></div>';
+		}
+		el.innerHTML = html;
+	});
+}
+
+function toggleGroup(el) {
+	var body = el.nextElementSibling;
+	var arrow = el.querySelector('.ec-group-arrow');
+	if (body.style.display == 'none') {
+		body.style.display = 'block';
+		arrow.innerHTML = '&#9660;';
+	} else {
+		body.style.display = 'none';
+		arrow.innerHTML = '&#9654;';
+	}
+}
+
+function switchProxy(group, name) {
+	apiCall('switch', {group: group, name: name}, function(r) {
+		if (r && r.ok) {
+			loadProxies();
+		}
+	});
+}
+
+function speedTestNode(group, name) {
+	var el = document.getElementById('delay-' + escAttr(group) + '-' + escAttr(name));
+	if (el) el.innerHTML = '<span class="ec-loading-small">...</span>';
+	apiCall('speedtest', {name: name}, function(r) {
+		if (el && r && r.ok) {
+			el.innerHTML = formatDelay(r.delay);
+			if (r.delay < 0) {
+				el.innerHTML = '<span class="ec-delay ec-delay-timeout">Timeout</span>';
+			} else {
+				el.innerHTML = r.delay + 'ms';
+			}
+		}
+	});
+}
+
+function speedTestAll() {
+	var btns = document.querySelectorAll('.ec-group-body .ec-btn-sm');
+	for (var i = 0; i < btns.length; i++) {
+		btns[i].click();
+	}
+}
+
+function escHtml(s) {
+	if (!s) return '';
+	return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escAttr(s) {
+	if (!s) return '';
+	return s.replace(/'/g,"\\'").replace(/"/g,'\\"');
+}
+
+document.getElementById('btn-speedtest-all').addEventListener('click', function() {
+	document.getElementById('loading-all').style.display = 'inline';
+	speedTestAll();
+	setTimeout(function() { document.getElementById('loading-all').style.display = 'none'; }, 6000);
+});
+
+loadProxies();
+setInterval(function() {
+	apiCall('status', {}, function(r) {
+		if (r) {
+			document.getElementById('ec-mode').textContent = r.mode || 'unknown';
+			document.getElementById('ec-running').textContent = r.running ? 'Running' : 'Stopped';
+			document.getElementById('ec-uptime').textContent = r.uptime || 'stopped';
+		}
+	});
+}, 10000);
+</script>
+</body>
+</html>

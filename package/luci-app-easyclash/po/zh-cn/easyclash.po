@@ -1,0 +1,20 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "EasyClash"
+msgstr "EasyClash"
+
+msgid "Nodes"
+msgstr "节点"
+
+msgid "Clients"
+msgstr "客户端"
+
+msgid "Subscribe"
+msgstr "订阅"
+
+msgid "Subscription Management"
+msgstr "订阅管理"
+
+msgid "Manage your subscription links for proxy node updates."
+msgstr "管理订阅链接以更新代理节点。"
