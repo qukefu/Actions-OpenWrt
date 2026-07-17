@@ -135,8 +135,20 @@ function speedTestNode(group, name) {
 }
 
 function speedTestAll() {
+	var tested = {};
 	var btns = document.querySelectorAll('.ec-group-body .ec-btn-sm');
-	for (var i = 0; i < btns.length; i++) btns[i].click();
+	for (var i = 0; i < btns.length; i++) {
+		var btn = btns[i];
+		var row = btn.closest('tr');
+		var nameCell = row.querySelector('.ec-node-name');
+		if (nameCell) {
+			var name = nameCell.textContent.trim();
+			if (!tested[name]) {
+				tested[name] = true;
+				btn.click();
+			}
+		}
+	}
 }
 
 function escHtml(s) {

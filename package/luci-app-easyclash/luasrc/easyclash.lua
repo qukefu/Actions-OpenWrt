@@ -200,9 +200,14 @@ function M.get_clients()
 	local arp_map = {}
 	if arp_raw and arp_raw ~= "" then
 		for line in arp_raw:gmatch("[^\n]+") do
-			local ip, _, _, mac, _ = line:match("^(%S+)%s+%S+%s+%S+%s+(%S+)%s+")
-			if ip and mac and mac ~= "00:00:00:00:00:00" and mac ~= "00:00:00:00:00:00" then
-				arp_map[mac:lower()] = {ip = ip, online = true}
+			local fields = {}
+			for f in line:gmatch("%S+") do table.insert(fields, f) end
+			if #fields >= 4 then
+				local ip = fields[1]
+				local mac = fields[4]
+				if mac ~= "00:00:00:00:00:00" and mac ~= "HW" and ip ~= "IP" then
+					arp_map[mac:lower()] = {ip = ip, online = true}
+				end
 			end
 		end
 	end
