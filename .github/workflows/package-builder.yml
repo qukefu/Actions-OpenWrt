@@ -1,6 +1,5 @@
 name: Package Builder
 
-# Trigger: manual dispatch only
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +14,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: Download latest SDK
       run: |
@@ -32,46 +31,42 @@ jobs:
         mv openwrt-sdk-* sdk
         echo "WORKDIR=$(pwd)/sdk" >> $GITHUB_ENV
 
-    - name: Setup package source
+    - name: Copy custom packages
+      run: |
+        if [ -d package ]; then
+          cp -r package/* ${{ env.WORKDIR }}/package/
+          echo "Copied custom packages:"
+          ls -d ${{ env.WORKDIR }}/package/luci-app-* 2>/dev/null || echo "(checking...)"
+
+    - name: Setup feeds and defconfig
       working-directory: ${{ env.WORKDIR }}
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
         make defconfig
 
-    - name: Copy custom packages from repo
-      run: |
-        [ -d package ] && cp -r package/* ${{ env.WORKDIR }}/package/ 2>/dev/null || true
-        # update package index
-        cd ${{ env.WORKDIR }}
-        make package/index 2>/dev/null || true
-
-    - name: Build packages
+    - name: Enable and build packages
       working-directory: ${{ env.WORKDIR }}
       run: |
         for pkg in ${{ inputs.packages }}; do
-          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
-          case "$pkg" in
-            kmod-*)
-              # Also enable kernel module symbol for kmod packages
-              kmod_upper=$(echo "$pkg" | sed 's/kmod-//' | tr 'a-z' 'A-Z')
-              echo "CONFIG_${kmod_upper}=m" >> .config
-              ;;
-          esac
-        done
-        make defconfig 2>&1 || true
-        # Verify the target exists
-        for pkg in ${{ inputs.packages }}; do
           echo "=== Building $pkg ==="
-          make package/$pkg/compile -j$(nproc) V=s || make package/$pkg/compile -j1 V=s || echo "FAILED=$pkg" >> $GITHUB_STEP_SUMMARY
-          echo "DONE=$pkg" >> $GITHUB_STEP_SUMMARY
+          # Check if Makefile exists
+          if [ -f "package/$pkg/Makefile" ]; then
+            echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+            make defconfig 2>&1 || true
+            make package/$pkg/compile V=s -j$(nproc) || make package/$pkg/compile V=s -j1 || echo "FAILED: $pkg"
+          else
+            echo "ERROR: package/$pkg/Makefile not found!"
+            ls package/ 2>/dev/null
+            ls package/luci-app-* 2>/dev/null || true
+          fi
         done
 
     - name: Collect artifacts
       run: |
         mkdir -p $GITHUB_WORKSPACE/workdir/output
-        find ${{ env.WORKDIR }}/bin/packages -name "*.ipk" -exec cp {} $GITHUB_WORKSPACE/workdir/output/ \;
-        echo "PKG_COUNT=$(find $GITHUB_WORKSPACE/workdir/output -name '*.ipk' | wc -l)" >> $GITHUB_ENV
+        find ${{ env.WORKDIR }}/bin/packages -name "*.ipk" -exec cp {} $GITHUB_WORKSPACE/workdir/output/ \; 2>/dev/null || true
+        echo "PKG_COUNT=$(find $GITHUB_WORKSPACE/workdir/output -name '*.ipk' 2>/dev/null | wc -l)" >> $GITHUB_ENV
 
     - name: Upload packages
       uses: actions/upload-artifact@v4
