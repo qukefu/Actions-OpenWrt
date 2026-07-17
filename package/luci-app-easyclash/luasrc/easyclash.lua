@@ -92,7 +92,7 @@ function M.get_clash_info()
 		return {running = false, mode = "unknown", uptime = "stopped"}
 	end
 	local ok, data = pcall(json.parse, raw)
-	if not ok then
+	if not ok or not data then
 		return {running = false, mode = "unknown", uptime = "stopped"}
 	end
 	-- try to read uptime from /proc
@@ -105,13 +105,6 @@ function M.get_clash_info()
 	if pid then
 		local stat = fs.readfile("/proc/" .. pid .. "/stat")
 		if stat then
-			local s = tonumber(stat:match("%((.-)%)") and stat:match("%) (.+)") or "") or "0"
-			local seconds = 0
-			for i=1,22 do
-				s = s:match("^%S+%s+(.*)")
-				if s and seconds then seconds = seconds end
-			end
-			-- field 22 is starttime in jiffies
 			local fields = {}
 			for f in stat:gmatch("%S+") do table.insert(fields, f) end
 			if #fields >= 22 then
