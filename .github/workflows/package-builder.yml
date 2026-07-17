@@ -23,7 +23,7 @@ jobs:
           | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
         SDK_URL="https://github.com/qukefu/Actions-OpenWrt/releases/download/${RELEASE}/openwrt-sdk-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.xz"
         echo "SDK_URL=$SDK_URL"
-        mkdir -p /workdir && cd /workdir
+        mkdir -p $GITHUB_WORKSPACE/workdir && cd $GITHUB_WORKSPACE/workdir
         wget -q "$SDK_URL" -O sdk.tar.xz || {
           echo "SDK not found in release, check if CONFIG_SDK=y is set"
           exit 1
@@ -69,15 +69,15 @@ jobs:
 
     - name: Collect artifacts
       run: |
-        mkdir -p /workdir/output
-        find ${{ env.WORKDIR }}/bin/packages -name "*.ipk" -exec cp {} /workdir/output/ \;
-        echo "PKG_COUNT=$(find /workdir/output -name '*.ipk' | wc -l)" >> $GITHUB_ENV
+        mkdir -p $GITHUB_WORKSPACE/workdir/output
+        find ${{ env.WORKDIR }}/bin/packages -name "*.ipk" -exec cp {} $GITHUB_WORKSPACE/workdir/output/ \;
+        echo "PKG_COUNT=$(find $GITHUB_WORKSPACE/workdir/output -name '*.ipk' | wc -l)" >> $GITHUB_ENV
 
     - name: Upload packages
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: packages-${{ inputs.packages }}
-        path: /workdir/output/*.ipk
+        path: ${{ github.workspace }}/workdir/output/*.ipk
 
     - name: Summary
       run: 'echo "### Built ${{ env.PKG_COUNT }} package(s): ${{ inputs.packages }}" >> $GITHUB_STEP_SUMMARY'
